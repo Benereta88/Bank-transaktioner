@@ -26,3 +26,8 @@ pytest>=7.0 # Enhetstester
 # Optional: Data quality framework
 great_expectations>=0.18  # Validera datakvalitet
  
+alembic revision --autogenerate -m 
+alembic upgrade head
+
+alembic revision --autogenerate -m "add"
+alembic upgrade head
