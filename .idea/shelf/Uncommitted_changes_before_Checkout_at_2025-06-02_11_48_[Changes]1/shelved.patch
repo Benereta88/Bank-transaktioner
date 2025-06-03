@@ -1,0 +1,250 @@
+Index: Bank_trasationer/models.py
+IDEA additional info:
+Subsystem: com.intellij.openapi.diff.impl.patch.CharsetEP
+<+>UTF-8
+===================================================================
+diff --git a/Bank_trasationer/models.py b/Bank_trasationer/models.py
+new file mode 100644
+--- /dev/null	(date 1748857686628)
++++ b/Bank_trasationer/models.py	(date 1748857686628)
+@@ -0,0 +1,12 @@
++from sqlalchemy import Column, String, Text
++from sqlalchemy.ext.declarative import declarative_base
++
++Base = declarative_base()
++
++class Customer(Base):
++    __tablename__ = "customers_with_accounts"
++
++    Personnummer = Column(String, primary_key=True)
++    Customer = Column(String, nullable=False)
++    Address = Column(String, nullable=False)
++    BankAccount = Column(Text, nullable=False)  # flera konton som kommaseparerad sträng
+Index: Bank_trasationer/etl_proceser.ipynb
+IDEA additional info:
+Subsystem: com.intellij.openapi.diff.impl.patch.CharsetEP
+<+>UTF-8
+===================================================================
+diff --git a/Bank_trasationer/etl_proceser.ipynb b/Bank_trasationer/etl_proceser.ipynb
+new file mode 100644
+--- /dev/null	(date 1748857686676)
++++ b/Bank_trasationer/etl_proceser.ipynb	(date 1748857686676)
+@@ -0,0 +1,89 @@
++#%%
++# === 1. Läs in rådata ===
++import pandas as pd
++import os
++
++# Ange din mappväg
++BASE_PATH = r"C:\Users\Book\Bank-transaktioner\Bank_trasationer\Grouparbete_bank\python-bank-project-start-main\data"
++
++# Filer
++customers_file = os.path.join(BASE_PATH, "sebank_customers_with_accounts.csv")
++transactions_file = os.path.join(BASE_PATH, "transactions.csv")
++
++# === 1. Läs in rådata ===
++customers_raw = pd.read_csv(customers_file)
++transactions_raw = pd.read_csv(transactions_file)
++
++# === 2. Rensa kunddata ===
++customers_cleaned = customers_raw.dropna(subset=["Customer", "Personnummer", "BankAccount"])
++
++for col in customers_cleaned.columns:
++    customers_cleaned[col] = customers_cleaned[col].astype(str).str.strip()
++
++# Unika kunder
++customers_df = customers_cleaned.drop_duplicates(subset="Personnummer")[["Customer", "Address", "Phone", "Personnummer"]]
++customers_df = customers_df.rename(columns={
++    "Customer": "name",
++    "Address": "address",
++    "Phone": "phone",
++    "Personnummer": "personnummer"
++})
++
++# Konton per kund
++accounts_df = customers_cleaned[["Personnummer", "BankAccount"]].drop_duplicates()
++accounts_df = accounts_df.rename(columns={
++    "Personnummer": "personnummer",
++    "BankAccount": "account_number"
++})
++
++# === 3. Rensa transaktioner ===
++transactions_cleaned = transactions_raw.dropna(subset=["transaction_id", "timestamp", "amount", "sender_account", "receiver_account"])
++
++for col in transactions_cleaned.select_dtypes(include='object').columns:
++    transactions_cleaned[col] = transactions_cleaned[col].astype(str).str.strip()
++
++# === 4. Spara rena CSV-filer ===
++customers_df.to_csv(os.path.join(BASE_PATH, "cleaned_customers.csv"), index=False)
++accounts_df.to_csv(os.path.join(BASE_PATH, "customer_accounts.csv"), index=False)
++transactions_cleaned.to_csv(os.path.join(BASE_PATH, "cleaned_transactions.csv"), index=False)
++
++print("✅ Klart! Rensade data sparade i:")
++print("- cleaned_customers.csv")
++print("- customer_accounts.csv")
++print("- cleaned_transactions.csv")
++
++
++#%%
++import re
++
++# === Validering: personnummer ===
++def is_valid_pnr(pnr):
++    return bool(re.fullmatch(r'\d{10}|\d{12}', str(pnr)))
++
++customers_df['valid_personnummer'] = customers_df['personnummer'].apply(is_valid_pnr)
++
++# === Validering: telefonnummer ===
++def is_valid_phone(phone):
++    return bool(re.fullmatch(r'\+?\d{7,15}', str(phone)))
++
++customers_df['valid_phone'] = customers_df['phone'].apply(is_valid_phone)
++
++# === Validering: kontonummer ===
++def is_valid_account(account):
++    return account.startswith("SE") and len(account) > 10
++
++accounts_df['valid_account'] = accounts_df['account_number'].apply(is_valid_account)
++
++# === Validering: transaktionsbelopp ===
++transactions_cleaned['valid_amount'] = transactions_cleaned['amount'] > 0
++
++# === Summering av fel ===
++print("Datakvalitet – antal felaktiga rader:")
++print(f"Ogiltiga personnummer: {len(customers_df[~customers_df['valid_personnummer']])}")
++print(f"Ogiltiga telefonnummer: {len(customers_df[~customers_df['valid_phone']])}")
++print(f"Ogiltiga kontonummer: {len(accounts_df[~accounts_df['valid_account']])}")
++print(f"Ogiltiga transaktionsbelopp: {len(transactions_cleaned[~transactions_cleaned['valid_amount']])}")
++
++#%%
++
++#%%
+Index: Bank_trasationer/new.ipynb
+IDEA additional info:
+Subsystem: com.intellij.openapi.diff.impl.patch.CharsetEP
+<+>UTF-8
+===================================================================
+diff --git a/Bank_trasationer/new.ipynb b/Bank_trasationer/new.ipynb
+new file mode 100644
+--- /dev/null	(date 1748857686644)
++++ b/Bank_trasationer/new.ipynb	(date 1748857686644)
+@@ -0,0 +1,47 @@
++#%%
++import pandas as pd
++
++# === 1. Läs in rådata ===
++customers_raw = pd.read_csv("sebank_customers_with_accounts.csv")
++transactions_raw = pd.read_csv("transactions.csv")
++
++# === 2. Rensa kunddata ===
++# Ta bort rader med saknade personnummer eller konton
++customers_cleaned = customers_raw.dropna(subset=["Customer", "Personnummer", "BankAccount"])
++
++# Trimma strängar (ta bort mellanslag)
++for col in customers_cleaned.columns:
++    customers_cleaned[col] = customers_cleaned[col].astype(str).str.strip()
++
++# Skapa en CSV för unika kunder (en per personnummer)
++customers_df = customers_cleaned.drop_duplicates(subset="Personnummer")[["Customer", "Address", "Phone", "Personnummer"]]
++customers_df = customers_df.rename(columns={
++    "Customer": "name",
++    "Address": "address",
++    "Phone": "phone",
++    "Personnummer": "personnummer"
++})
++
++# Skapa en CSV för konton (en rad per konto)
++accounts_df = customers_cleaned[["Personnummer", "BankAccount"]].drop_duplicates()
++accounts_df = accounts_df.rename(columns={
++    "Personnummer": "personnummer",
++    "BankAccount": "account_number"
++})
++
++# === 3. Rensa transaktioner ===
++transactions_cleaned = transactions_raw.dropna(subset=["transaction_id", "timestamp", "amount", "sender_account", "receiver_account"])
++
++# Trimma strängar i objektkolumner
++for col in transactions_cleaned.select_dtypes(include='object').columns:
++    transactions_cleaned[col] = transactions_cleaned[col].astype(str).str.strip()
++
++# === 4. Spara rena CSV-filer ===
++customers_df.to_csv("cleaned_customers.csv", index=False)
++accounts_df.to_csv("customer_accounts.csv", index=False)
++transactions_cleaned.to_csv("cleaned_transactions.csv", index=False)
++
++print("✅ Klart! Skapade tre rena filer:")
++print("- cleaned_customers.csv")
++print("- customer_accounts.csv")
++print("- cleaned_transactions.csv")
+Index: Bank_trasationer/workflow.py
+IDEA additional info:
+Subsystem: com.intellij.openapi.diff.impl.patch.CharsetEP
+<+>UTF-8
+===================================================================
+diff --git a/Bank_trasationer/workflow.py b/Bank_trasationer/workflow.py
+new file mode 100644
+--- /dev/null	(date 1748857686685)
++++ b/Bank_trasationer/workflow.py	(date 1748857686685)
+@@ -0,0 +1,62 @@
++from prefect import flow, task
++import pandas as pd
++from sqlalchemy import create_engine
++
++
++@task
++def import_csv(csv_path, mapped_columns_to_import=None):
++    try:
++        if mapped_columns_to_import is None:
++            dataframe = pd.read_csv(csv_path)
++        else:
++            dataframe = pd.read_csv(csv_path, usecols=mapped_columns_to_import.keys())
++        if dataframe.empty:
++            raise ValueError("CSV-filen är tom.")
++        return dataframe
++    except Exception as e:
++        raise RuntimeError(f"Kunde inte läsa CSV: {e}")
++
++
++@task
++def write_to_postgres(dataframe, table_name, db_url, mapped_columns_to_import=None, if_exists_mode="append"):
++    try:
++        if dataframe.empty:
++            raise ValueError("DataFrame är tom – ingen data att skriva till databasen.")
++
++        if mapped_columns_to_import:
++            dataframe.rename(columns=mapped_columns_to_import, inplace=True)
++
++        engine = create_engine(db_url)
++        dataframe.to_sql(
++            name=table_name,
++            con=engine,
++            if_exists=if_exists_mode,
++            index=False,
++            method='multi'
++        )
++        print(f"Data skriven till tabellen '{table_name}' i PostgreSQL.")
++    except Exception as e:
++        raise RuntimeError(f"Kunde inte skriva till PostgreSQL: {e}")
++
++
++@flow
++def load_data_flow():
++    mapped_columns_to_import = {
++        "Customer": "customer_name",
++        "Address": "address",
++        "Phone": "phone",
++        "Personnummer": "personal_id",
++        "BankAccount": "bank_accounts"
++    }
++
++    csv_path = r"C:\Users\Book\Bank-transaktioner\Bank_trasationer\Grouparbete_bank\python-bank-project-start-main\data\sebank_customers_with_accounts.csv"
++
++    db_url = "postgresql://postgres:Pipi-ina-18@localhost:5432/Bank_trasationer"
++    table_name = "customers_with_accounts"
++
++    df = import_csv(csv_path, mapped_columns_to_import)
++    write_to_postgres(df, table_name, db_url, mapped_columns_to_import, if_exists_mode="replace")
++
++
++if __name__ == "__main__":
++    load_data_flow()
