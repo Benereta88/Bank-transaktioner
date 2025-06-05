@@ -26,8 +26,12 @@ pytest>=7.0 # Enhetstester
 # Optional: Data quality framework
 great_expectations>=0.18  # Validera datakvalitet
  
-alembic revision --autogenerate -m 
-alembic upgrade head
+# Kör i terminalen för att installera beroenden'
 
 alembic revision --autogenerate -m "add"
 alembic upgrade head
+
+# kör  i terminal innan dy kör pytest
+
+$env:PYTHONPATH = "."
+pytest
