@@ -35,3 +35,6 @@ alembic upgrade head
 
 $env:PYTHONPATH = "."
 pytest
+
+# Upps alla i gruppen har arbetat mest med main och sedan pushat till egna brancher.
+
